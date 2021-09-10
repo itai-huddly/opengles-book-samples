@@ -15,6 +15,8 @@
 //    example is to demonstrate the basic concepts of 
 //    OpenGL ES 2.0 rendering.
 #include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
 #include "esUtil.h"
 
 typedef struct

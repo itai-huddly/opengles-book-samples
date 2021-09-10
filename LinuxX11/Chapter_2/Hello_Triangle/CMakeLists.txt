@@ -15,10 +15,10 @@ add_executable(Hello_Triangle ${SRCS})
 
 target_include_directories(Hello_Triangle PUBLIC 
     "${PROJECT_SOURCE_DIR}/Common"
-    "${PROJECT_SOURCE_DIR}/include"
 )
 
 target_link_libraries(
     Hello_Triangle
     CONAN_PKG::mesa
+    X11
 )
