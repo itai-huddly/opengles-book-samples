@@ -20,5 +20,5 @@ target_include_directories(Hello_Triangle PUBLIC
 target_link_libraries(
     Hello_Triangle
     CONAN_PKG::mesa
-    X11
+    # X11
 )

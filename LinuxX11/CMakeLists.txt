@@ -7,6 +7,8 @@ project(Examples VERSION 1.0)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+add_definitions(-DEGL_NO_X11)
+
 add_subdirectory(Chapter_2/Hello_Triangle)
 
 INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR})

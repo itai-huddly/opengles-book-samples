@@ -27,12 +27,25 @@
 #include <EGL/egl.h>
 #include "esUtil.h"
 
-#include <X11/Xlib.h>
-#include <X11/Xatom.h>
-#include <X11/Xutil.h>
+static const EGLint configAttribs[] = {
+    EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+    EGL_BLUE_SIZE, 8,
+    EGL_GREEN_SIZE, 8,
+    EGL_RED_SIZE, 8,
+    EGL_DEPTH_SIZE, 8,
+    EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+    EGL_NONE};
 
-// X11 related local variables
-static Display *x_display = NULL;
+static const int pbufferWidth = 9;
+static const int pbufferHeight = 9;
+
+static const EGLint pbufferAttribs[] = {
+    EGL_WIDTH,
+    pbufferWidth,
+    EGL_HEIGHT,
+    pbufferHeight,
+    EGL_NONE,
+};
 
 ///
 // CreateEGLContext()
@@ -46,41 +59,52 @@ EGLBoolean CreateEGLContext(EGLNativeWindowType hWnd, EGLDisplay *eglDisplay,
     EGLint numConfigs;
     EGLint majorVersion;
     EGLint minorVersion;
-    EGLDisplay display;
+    // EGLDisplay display;
     EGLContext context;
     EGLSurface surface;
     EGLConfig config;
     EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE, EGL_NONE};
 
+
     // Get Display
-    display = eglGetDisplay((EGLNativeDisplayType)x_display);
+    void* test = fbGetDisplay();
+    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (display == EGL_NO_DISPLAY)
     {
+        esLogMessage("Failed to get display\n");
+        esLogMessage("Error: %d\n", eglGetError());
         return EGL_FALSE;
     }
+
+    esLogMessage("Display is 0x%08x\n", display);
 
     // Initialize EGL
     if (!eglInitialize(display, &majorVersion, &minorVersion))
     {
+        esLogMessage("Failed with eglInitialize\n");
+        esLogMessage("Error: 0x%x\n", eglGetError());
         return EGL_FALSE;
     }
 
     // Get configs
     if (!eglGetConfigs(display, NULL, 0, &numConfigs))
     {
+        esLogMessage("Failed with eglGetConfigs\n");
         return EGL_FALSE;
     }
 
     // Choose config
     if (!eglChooseConfig(display, attribList, &config, 1, &numConfigs))
     {
+        esLogMessage("Failed with eglChooseConfig\n");
         return EGL_FALSE;
     }
 
     // Create a surface
-    surface = eglCreateWindowSurface(display, config, (EGLNativeWindowType)hWnd, NULL);
+    surface = eglCreatePbufferSurface(display, config, pbufferAttribs);
     if (surface == EGL_NO_SURFACE)
     {
+        esLogMessage("Failed with eglCreateBufferSurface\n");
         return EGL_FALSE;
     }
 
@@ -103,104 +127,9 @@ EGLBoolean CreateEGLContext(EGLNativeWindowType hWnd, EGLDisplay *eglDisplay,
     return EGL_TRUE;
 }
 
-///
-//  WinCreate()
-//
-//      This function initialized the native X11 display and window for EGL
-//
-EGLBoolean WinCreate(ESContext *esContext, const char *title)
+EGLBoolean FrameBufferCreate(ESContext *esContext, const char *title)
 {
-    Window root;
-    XSetWindowAttributes swa;
-    XSetWindowAttributes xattr;
-    Atom wm_state;
-    XWMHints hints;
-    XEvent xev;
-    EGLConfig ecfg;
-    EGLint num_config;
-    Window win;
-
-    /*
-     * X11 native display initialization
-     */
-
-    x_display = XOpenDisplay(NULL);
-    if (x_display == NULL)
-    {
-        return EGL_FALSE;
-    }
-
-    root = DefaultRootWindow(x_display);
-
-    swa.event_mask = ExposureMask | PointerMotionMask | KeyPressMask;
-    win = XCreateWindow(
-        x_display, root,
-        0, 0, esContext->width, esContext->height, 0,
-        CopyFromParent, InputOutput,
-        CopyFromParent, CWEventMask,
-        &swa);
-
-    xattr.override_redirect = FALSE;
-    XChangeWindowAttributes(x_display, win, CWOverrideRedirect, &xattr);
-
-    hints.input = TRUE;
-    hints.flags = InputHint;
-    XSetWMHints(x_display, win, &hints);
-
-    // make the window visible on the screen
-    XMapWindow(x_display, win);
-    XStoreName(x_display, win, title);
-
-    // get identifiers for the provided atom name strings
-    wm_state = XInternAtom(x_display, "_NET_WM_STATE", FALSE);
-
-    memset(&xev, 0, sizeof(xev));
-    xev.type = ClientMessage;
-    xev.xclient.window = win;
-    xev.xclient.message_type = wm_state;
-    xev.xclient.format = 32;
-    xev.xclient.data.l[0] = 1;
-    xev.xclient.data.l[1] = FALSE;
-    XSendEvent(
-        x_display,
-        DefaultRootWindow(x_display),
-        FALSE,
-        SubstructureNotifyMask,
-        &xev);
-
-    esContext->hWnd = (EGLNativeWindowType)win;
     return EGL_TRUE;
-}
-
-///
-//  userInterrupt()
-//
-//      Reads from X11 event loop and interrupt program if there is a keypress, or
-//      window close action.
-//
-GLboolean userInterrupt(ESContext *esContext)
-{
-    XEvent xev;
-    KeySym key;
-    GLboolean userinterrupt = GL_FALSE;
-    char text;
-
-    // Pump all messages from X server. Keypresses are directed to keyfunc (if defined)
-    while (XPending(x_display))
-    {
-        XNextEvent(x_display, &xev);
-        if (xev.type == KeyPress)
-        {
-            if (XLookupString(&xev.xkey, &text, 1, &key, 0) == 1)
-            {
-                if (esContext->keyFunc != NULL)
-                    esContext->keyFunc(esContext, text, 0, 0);
-            }
-        }
-        if (xev.type == DestroyNotify)
-            userinterrupt = GL_TRUE;
-    }
-    return userinterrupt;
 }
 
 //////////////////////////////////////////////////////////////////
@@ -235,7 +164,7 @@ void ESUTIL_API esInitContext(ESContext *esContext)
 //          ES_WINDOW_STENCIL     - specifies that a stencil buffer should be created
 //          ES_WINDOW_MULTISAMPLE - specifies that a multi-sample buffer should be created
 //
-GLboolean ESUTIL_API esCreateWindow(ESContext *esContext, const char *title, GLint width, GLint height, GLuint flags)
+GLboolean ESUTIL_API esCreateFrameBuffer(ESContext *esContext, const char *title, GLint width, GLint height, GLuint flags)
 {
     EGLint attribList[] =
         {
@@ -250,14 +179,16 @@ GLboolean ESUTIL_API esCreateWindow(ESContext *esContext, const char *title, GLi
 
     if (esContext == NULL)
     {
+        esLogMessage("Can't create window with null context\n");
         return GL_FALSE;
     }
 
     esContext->width = width;
     esContext->height = height;
 
-    if (!WinCreate(esContext, title))
+    if (!FrameBufferCreate(esContext, title))
     {
+        esLogMessage("Can't create frame buffer\n");
         return GL_FALSE;
     }
 
@@ -267,9 +198,11 @@ GLboolean ESUTIL_API esCreateWindow(ESContext *esContext, const char *title, GLi
                           &esContext->eglSurface,
                           attribList))
     {
+        esLogMessage("Failed to create EGLContext\n");
         return GL_FALSE;
     }
 
+    esLogMessage("Successfully created window\n");
     return GL_TRUE;
 }
 
@@ -289,7 +222,11 @@ void ESUTIL_API esMainLoop(ESContext *esContext)
 
     gettimeofday(&t1, &tz);
 
-    while (userInterrupt(esContext) == GL_FALSE)
+    esLogMessage("Starting esMainLoop\n");
+
+    int num_of_frames_to_render = 5000;
+
+    while (frames < num_of_frames_to_render)
     {
         gettimeofday(&t2, &tz);
         deltatime = (float)(t2.tv_sec - t1.tv_sec + (t2.tv_usec - t1.tv_usec) * 1e-6);

@@ -107,8 +107,10 @@ int Init(ESContext *esContext)
    // Create the program object
    programObject = glCreateProgram();
 
-   if (programObject == 0)
+   if (programObject == 0){
+      printf("Failed to create program object\n");
       return 0;
+   }
 
    glAttachShader(programObject, vertexShader);
    glAttachShader(programObject, fragmentShader);
@@ -183,7 +185,7 @@ int main(int argc, char *argv[])
    esInitContext(&esContext);
    esContext.userData = &userData;
 
-   esCreateWindow(&esContext, "Hello Triangle", 320, 240, ES_WINDOW_RGB);
+   esCreateFrameBuffer(&esContext, "Hello Triangle", 320, 240, ES_WINDOW_RGB);
 
    if (!Init(&esContext))
       return 0;
